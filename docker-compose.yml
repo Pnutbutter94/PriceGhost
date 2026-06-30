@@ -19,7 +19,10 @@ services:
     restart: unless-stopped
 
   backend:
-    image: ghcr.io/clucraft/priceghost-backend:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    image: priceghost-backend-local:latest
     container_name: priceghost-backend
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-priceghost}:${POSTGRES_PASSWORD:-priceghost}@postgres:5432/${POSTGRES_DB:-priceghost}

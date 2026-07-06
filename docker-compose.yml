@@ -17,6 +17,9 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    networks:
+      default:
+        ipv4_address: 172.22.0.4
 
   backend:
     build:
@@ -54,3 +57,9 @@ services:
 
 volumes:
   postgres_data:
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.22.0.0/16

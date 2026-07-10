@@ -27,6 +27,7 @@ services:
       dockerfile: Dockerfile.backend
     image: priceghost-backend-local:latest
     container_name: priceghost-backend
+    init: true
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-priceghost}:${POSTGRES_PASSWORD:-priceghost}@postgres:5432/${POSTGRES_DB:-priceghost}
       JWT_SECRET: ${JWT_SECRET}

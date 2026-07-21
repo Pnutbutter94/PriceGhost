@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+import { Router, Response, NextFunction } from 'express';
 import { AuthRequest, authMiddleware } from '../middleware/auth';
 import { userQueries } from '../models';
 
@@ -6,6 +6,23 @@ const router = Router();
 
 // All routes require authentication
 router.use(authMiddleware);
+
+// Ollama test hits an arbitrary user-supplied base_url on the internal network by
+// design (self-hosted Ollama is typically LAN/loopback) — can't SSRF-blocklist it
+// without breaking the feature, so restrict it to admin accounts instead.
+const adminMiddleware = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const user = await userQueries.findById(req.userId!);
+    if (!user || !user.is_admin) {
+      res.status(403).json({ error: 'Admin access required' });
+      return;
+    }
+    next();
+  } catch (error) {
+    console.error('Admin middleware error:', error);
+    res.status(500).json({ error: 'Failed to verify admin status' });
+  }
+};
 
 // Get notification settings
 router.get('/notifications', async (req: AuthRequest, res: Response) => {
@@ -439,7 +456,7 @@ router.post('/ai/test', async (req: AuthRequest, res: Response) => {
 });
 
 // Test Ollama connection and list available models
-router.post('/ai/test-ollama', async (req: AuthRequest, res: Response) => {
+router.post('/ai/test-ollama', adminMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { base_url } = req.body;
 

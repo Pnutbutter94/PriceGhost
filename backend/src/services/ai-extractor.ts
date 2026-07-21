@@ -6,6 +6,7 @@ import { load } from 'cheerio';
 import { AISettings } from '../models';
 import { ParsedPrice } from '../utils/priceParser';
 import { StockStatus, PriceCandidate } from './scraper';
+import { assertSafeUrl } from '../utils/ssrfGuard';
 
 // Strip thinking mode tags from model responses (Qwen3, DeepSeek, etc.)
 // These models output <think>...</think> blocks before their actual response
@@ -791,6 +792,10 @@ export async function extractWithAI(
   url: string,
   settings: AISettings
 ): Promise<AIExtractionResult> {
+  // SSRF guard: this fn is reachable from the /ai/test debug endpoint with an
+  // arbitrary user-supplied URL, not just internal scrape targets.
+  await assertSafeUrl(url);
+
   // Fetch the page HTML
   const response = await axios.get<string>(url, {
     headers: {
@@ -800,6 +805,7 @@ export async function extractWithAI(
         'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
     },
     timeout: 20000,
+    maxRedirects: 0, // prevent redirect-based SSRF bypass past the check above
   });
 
   const html = response.data;

@@ -61,11 +61,15 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       await productQueries.updateAnchorPrice(product.id, selectedPrice);
       console.log(`[Products] Saved anchor price ${selectedPrice} for product ${product.id} (method: ${selectedMethod})`);
 
-      // Record the user-selected price
+      // Record the user-selected price. Currency wasn't in the selection payload
+      // (selectedPrice/selectedMethod are just number+string) — was hardcoded 'USD'
+      // here, which survived the deployment's global USD->EUR sed patch since that
+      // only matches `|| 'USD'`/`let currency = 'USD'` in the compiled scraper.
+      // Use the currency actually parsed off the page instead.
       await priceHistoryQueries.create(
         product.id,
         selectedPrice,
-        'USD', // TODO: Get currency from selection
+        scrapedData.price?.currency || 'EUR',
         null
       );
 

@@ -76,9 +76,10 @@ function findPriceConsensus(candidates: PriceCandidate[]): { price: PriceCandida
   });
 
   const largestGroup = groups[0];
-  // Consensus if majority agrees (>= 50% of methods) OR if top group has significantly more votes
-  const hasConsensus = largestGroup.length >= Math.ceil(candidates.length / 2) ||
-                       (groups.length > 1 && largestGroup.length > groups[1].length);
+  // Consensus requires the top group to strictly outnumber the runner-up — a tied
+  // split (1-1, 2-2) previously passed via `>= ceil(n/2)` and got silently treated
+  // as agreement with no arbitration or review flag.
+  const hasConsensus = groups.length === 1 || largestGroup.length > groups[1].length;
 
   // Pick the highest confidence candidate from the winning group
   const winner = largestGroup.sort((a, b) => b.confidence - a.confidence)[0];

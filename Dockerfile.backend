@@ -3,3 +3,33 @@ FROM ghcr.io/clucraft/priceghost-backend:latest
 # Patch currency defaults: all tracked products are EUR-denominated (.pt/.es/.fr sites)
 RUN sed -i "s/|| 'USD'/|| 'EUR'/g" /app/dist/services/scraper.js && \
     sed -i "s/let currency = 'USD'/let currency = 'EUR'/g" /app/dist/services/scraper.js
+
+# #B346 SSRF fix: any registered user could make the backend fetch arbitrary
+# (incl. internal/loopback) URLs via /ai/test and /ai/test-ollama, no ACL check.
+# ssrfGuard blocks private/loopback/link-local targets on the generic-URL test
+# path; test-ollama legitimately needs private-network access (self-hosted
+# Ollama) so it's gated to admin accounts instead.
+COPY backend/patches/ssrfGuard.js /app/dist/utils/ssrfGuard.js
+RUN sed -i \
+      -e "s/async function extractWithAI(url, settings) {/async function extractWithAI(url, settings) {\n    await require('..\/utils\/ssrfGuard').assertSafeUrl(url);/" \
+      -e "s/timeout: 20000,/timeout: 20000,\n        maxRedirects: 0,/" \
+      /app/dist/services/ai-extractor.js && \
+    sed -i \
+      "0,/router.post('\/ai\/test-ollama', async (req, res) => {/s//router.post('\/ai\/test-ollama', async (req, res) => {\n    const __u = await models_1.userQueries.findById(req.userId);\n    if (!__u || !__u.is_admin) { res.status(403).json({ error: 'Admin access required' }); return; }/" \
+      /app/dist/routes/settings.js
+
+# #B346 consensus tie-bug: a 1-1 or 2-2 candidate split satisfied the old
+# `>= ceil(n/2)` check and was silently treated as agreement (no AI arbitration,
+# no review flag) on unattended scheduler/refresh paths. Consensus now requires
+# the top group to strictly outnumber the runner-up.
+RUN sed -i \
+      '/const hasConsensus = largestGroup.length >= Math.ceil/,/(groups.length > 1 && largestGroup.length > groups\[1\].length);/c\    const hasConsensus = groups.length === 1 || largestGroup.length > groups[1].length;' \
+      /app/dist/services/scraper.js
+
+# #B346 currency mislabel: the manual price-selection confirm path hardcoded
+# 'USD' regardless of deployment currency, and the file's own USD->EUR sed
+# patch above only matches `|| 'USD'`/`let currency = 'USD'`, not this literal.
+# Use the currency actually parsed off the page instead of a hardcoded default.
+RUN sed -i \
+      "s/selectedPrice, 'USD', \/\/ TODO: Get currency from selection/selectedPrice, scrapedData.price \&\& scrapedData.price.currency || 'EUR',/" \
+      /app/dist/routes/products.js

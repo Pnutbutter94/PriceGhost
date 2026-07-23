@@ -1,6 +1,13 @@
 import { Router, Response, NextFunction } from 'express';
 import { AuthRequest, authMiddleware } from '../middleware/auth';
 import { userQueries } from '../models';
+// #B346: GET /notifications and GET /ai returned credential columns verbatim.
+// Mask on read; PUT skips a field still carrying the mask sentinel so an edit
+// form can round-trip unchanged fields without clobbering the real secret.
+const { maskSecret, isMasked } = require('../patches/maskSecret') as {
+  maskSecret: (v: string | null | undefined) => string | null;
+  isMasked: (v: unknown) => boolean;
+};
 
 const router = Router();
 
@@ -36,21 +43,21 @@ router.get('/notifications', async (req: AuthRequest, res: Response) => {
     }
 
     res.json({
-      telegram_bot_token: settings.telegram_bot_token || null,
+      telegram_bot_token: maskSecret(settings.telegram_bot_token),
       telegram_chat_id: settings.telegram_chat_id || null,
       telegram_enabled: settings.telegram_enabled ?? true,
-      discord_webhook_url: settings.discord_webhook_url || null,
+      discord_webhook_url: maskSecret(settings.discord_webhook_url),
       discord_enabled: settings.discord_enabled ?? true,
-      pushover_user_key: settings.pushover_user_key || null,
-      pushover_app_token: settings.pushover_app_token || null,
+      pushover_user_key: maskSecret(settings.pushover_user_key),
+      pushover_app_token: maskSecret(settings.pushover_app_token),
       pushover_enabled: settings.pushover_enabled ?? true,
       ntfy_topic: settings.ntfy_topic || null,
       ntfy_server_url: settings.ntfy_server_url || null,
       ntfy_username: settings.ntfy_username || null,
-      ntfy_password: settings.ntfy_password || null,
+      ntfy_password: maskSecret(settings.ntfy_password),
       ntfy_enabled: settings.ntfy_enabled ?? true,
       gotify_url: settings.gotify_url || null,
-      gotify_app_token: settings.gotify_app_token || null,
+      gotify_app_token: maskSecret(settings.gotify_app_token),
       gotify_enabled: settings.gotify_enabled ?? true,
     });
   } catch (error) {
@@ -63,7 +70,8 @@ router.get('/notifications', async (req: AuthRequest, res: Response) => {
 router.put('/notifications', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
-    const {
+    // eslint-disable-next-line prefer-const -- fields reassigned below when masked
+    let {
       telegram_bot_token,
       telegram_chat_id,
       telegram_enabled,
@@ -81,6 +89,15 @@ router.put('/notifications', async (req: AuthRequest, res: Response) => {
       gotify_app_token,
       gotify_enabled,
     } = req.body;
+
+    // #B346: a still-masked value means the edit form round-tripped it
+    // unchanged — don't overwrite the real secret with the mask placeholder.
+    if (isMasked(telegram_bot_token)) telegram_bot_token = undefined;
+    if (isMasked(discord_webhook_url)) discord_webhook_url = undefined;
+    if (isMasked(pushover_user_key)) pushover_user_key = undefined;
+    if (isMasked(pushover_app_token)) pushover_app_token = undefined;
+    if (isMasked(ntfy_password)) ntfy_password = undefined;
+    if (isMasked(gotify_app_token)) gotify_app_token = undefined;
 
     const settings = await userQueries.updateNotificationSettings(userId, {
       telegram_bot_token,
@@ -107,21 +124,21 @@ router.put('/notifications', async (req: AuthRequest, res: Response) => {
     }
 
     res.json({
-      telegram_bot_token: settings.telegram_bot_token || null,
+      telegram_bot_token: maskSecret(settings.telegram_bot_token),
       telegram_chat_id: settings.telegram_chat_id || null,
       telegram_enabled: settings.telegram_enabled ?? true,
-      discord_webhook_url: settings.discord_webhook_url || null,
+      discord_webhook_url: maskSecret(settings.discord_webhook_url),
       discord_enabled: settings.discord_enabled ?? true,
-      pushover_user_key: settings.pushover_user_key || null,
-      pushover_app_token: settings.pushover_app_token || null,
+      pushover_user_key: maskSecret(settings.pushover_user_key),
+      pushover_app_token: maskSecret(settings.pushover_app_token),
       pushover_enabled: settings.pushover_enabled ?? true,
       ntfy_topic: settings.ntfy_topic || null,
       ntfy_server_url: settings.ntfy_server_url || null,
       ntfy_username: settings.ntfy_username || null,
-      ntfy_password: settings.ntfy_password || null,
+      ntfy_password: maskSecret(settings.ntfy_password),
       ntfy_enabled: settings.ntfy_enabled ?? true,
       gotify_url: settings.gotify_url || null,
-      gotify_app_token: settings.gotify_app_token || null,
+      gotify_app_token: maskSecret(settings.gotify_app_token),
       gotify_enabled: settings.gotify_enabled ?? true,
       message: 'Notification settings updated successfully',
     });
@@ -348,13 +365,13 @@ router.get('/ai', async (req: AuthRequest, res: Response) => {
       ai_enabled: settings.ai_enabled || false,
       ai_verification_enabled: settings.ai_verification_enabled || false,
       ai_provider: settings.ai_provider || null,
-      anthropic_api_key: settings.anthropic_api_key || null,
+      anthropic_api_key: maskSecret(settings.anthropic_api_key),
       anthropic_model: settings.anthropic_model || null,
-      openai_api_key: settings.openai_api_key || null,
+      openai_api_key: maskSecret(settings.openai_api_key),
       openai_model: settings.openai_model || null,
       ollama_base_url: settings.ollama_base_url || null,
       ollama_model: settings.ollama_model || null,
-      gemini_api_key: settings.gemini_api_key || null,
+      gemini_api_key: maskSecret(settings.gemini_api_key),
       gemini_model: settings.gemini_model || null,
     });
   } catch (error) {
@@ -367,7 +384,8 @@ router.get('/ai', async (req: AuthRequest, res: Response) => {
 router.put('/ai', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
-    const {
+    // eslint-disable-next-line prefer-const -- fields reassigned below when masked
+    let {
       ai_enabled,
       ai_verification_enabled,
       ai_provider,
@@ -380,6 +398,12 @@ router.put('/ai', async (req: AuthRequest, res: Response) => {
       gemini_api_key,
       gemini_model,
     } = req.body;
+
+    // #B346: a still-masked value means the edit form round-tripped it
+    // unchanged — don't overwrite the real secret with the mask placeholder.
+    if (isMasked(anthropic_api_key)) anthropic_api_key = undefined;
+    if (isMasked(openai_api_key)) openai_api_key = undefined;
+    if (isMasked(gemini_api_key)) gemini_api_key = undefined;
 
     const settings = await userQueries.updateAISettings(userId, {
       ai_enabled,
@@ -404,13 +428,13 @@ router.put('/ai', async (req: AuthRequest, res: Response) => {
       ai_enabled: settings.ai_enabled || false,
       ai_verification_enabled: settings.ai_verification_enabled || false,
       ai_provider: settings.ai_provider || null,
-      anthropic_api_key: settings.anthropic_api_key || null,
+      anthropic_api_key: maskSecret(settings.anthropic_api_key),
       anthropic_model: settings.anthropic_model || null,
-      openai_api_key: settings.openai_api_key || null,
+      openai_api_key: maskSecret(settings.openai_api_key),
       openai_model: settings.openai_model || null,
       ollama_base_url: settings.ollama_base_url || null,
       ollama_model: settings.ollama_model || null,
-      gemini_api_key: settings.gemini_api_key || null,
+      gemini_api_key: maskSecret(settings.gemini_api_key),
       gemini_model: settings.gemini_model || null,
       message: 'AI settings updated successfully',
     });

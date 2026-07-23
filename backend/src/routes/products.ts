@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import { AuthRequest, authMiddleware } from '../middleware/auth';
 import { productQueries, priceHistoryQueries, stockStatusHistoryQueries } from '../models';
-import { scrapeProduct, scrapeProductWithVoting, ExtractionMethod } from '../services/scraper';
+import { scrapeProductWithVoting, ExtractionMethod } from '../services/scraper';
 
 const router = Router();
 
@@ -33,7 +33,11 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 
     // Validate URL
     try {
-      new URL(url);
+      const parsedUrl = new URL(url);
+      // #B346: only http(s) — new URL() alone accepts javascript:/data:/file: etc.
+      if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+        throw new Error('Unsupported URL scheme');
+      }
     } catch {
       res.status(400).json({ error: 'Invalid URL format' });
       return;
@@ -41,8 +45,10 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 
     // If user is confirming a price selection, use the old scraper with their choice
     if (selectedPrice !== undefined && selectedMethod) {
-      // User has selected a price from candidates - use it directly
-      const scrapedData = await scrapeProduct(url, userId);
+      // User has selected a price from candidates - use the same voting scraper
+      // that generated them (was scrapeProduct(), a stale/separate single-strategy
+      // path — wasted round-trip and could disagree with what the user just saw).
+      const scrapedData = await scrapeProductWithVoting(url, userId, selectedMethod, selectedPrice, true, true);
 
       // Create product with the user-selected price
       const product = await productQueries.create(

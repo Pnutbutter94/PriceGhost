@@ -33,3 +33,64 @@ RUN sed -i \
 RUN sed -i \
       "s/selectedPrice, 'USD', \/\/ TODO: Get currency from selection/selectedPrice, scrapedData.price \&\& scrapedData.price.currency || 'EUR',/" \
       /app/dist/routes/products.js
+
+# #B346 medium bundle (2026-07-23) --------------------------------------------
+
+# 1. Stale re-scrape on confirm: manual price-confirm used the legacy single-
+# strategy scraper instead of the voting scraper that generated the candidates
+# just shown to the user. Reuse its anchor-price mechanism instead.
+RUN sed -i \
+      "s|const scrapedData = await (0, scraper_1.scrapeProduct)(url, userId);|const scrapedData = await (0, scraper_1.scrapeProductWithVoting)(url, userId, selectedMethod, selectedPrice, true, true);|" \
+      /app/dist/routes/products.js
+
+# 2. javascript:/data:/file: scheme bypass: URL validation only checked
+# parseability, not protocol, so `new URL(url)` accepted any scheme.
+RUN sed -i \
+      "s|            new URL(url);|            const __parsedUrl = new URL(url); if (__parsedUrl.protocol !== 'http:' \&\& __parsedUrl.protocol !== 'https:') { throw new Error('Unsupported URL scheme'); }|" \
+      /app/dist/routes/products.js
+
+# 3. Unthrottled headless-Chromium launches: no concurrency cap on
+# scrapeWithBrowser, resource-exhaustion risk on the i5-4210U/8GB host.
+COPY backend/patches/concurrencyLimiter.js /app/dist/patches/concurrencyLimiter.js
+RUN sed -i \
+      "s|async function scrapeWithBrowser(url) {|async function scrapeWithBrowser(url) {\n    const __release = await require('../patches/concurrencyLimiter').acquire();\n    try {\n        return await _scrapeWithBrowserInner(url);\n    } finally {\n        __release();\n    }\n}\nasync function _scrapeWithBrowserInner(url) {|" \
+      /app/dist/services/scraper.js
+
+# 4. No rate limiting / open CORS: bare cors() reflects any origin, no
+# express-rate-limit/helmet at all. Hand-rolled limiter (no new dependency)
+# + explicit origin allowlist (override via CORS_ORIGIN env, comma-separated).
+COPY backend/patches/rateLimiter.js /app/dist/patches/rateLimiter.js
+RUN sed -i \
+      "s|app.use((0, cors_1.default)());|const __corsOrigins = (process.env.CORS_ORIGIN \|\| \"http://localhost:8092,http://100.100.203.28:8092,http://casaserver.local:8092\").split(\",\").filter(Boolean);\napp.use((0, cors_1.default)({ origin: __corsOrigins, credentials: true }));\napp.use(require('./patches/rateLimiter').rateLimit);|" \
+      /app/dist/index.js
+
+# 5. Plaintext credentials on GET /settings/notifications and /settings/ai:
+# mask on read; PUT ignores a still-masked value so the edit form can
+# round-trip unchanged fields without clobbering the real secret.
+COPY backend/patches/maskSecret.js /app/dist/patches/maskSecret.js
+RUN sed -i 's|const models_1 = require("../models");|const models_1 = require("../models");\nconst { maskSecret, isMasked } = require("../patches/maskSecret");|' /app/dist/routes/settings.js && \
+    sed -i 's|telegram_bot_token: settings.telegram_bot_token \|\| null,|telegram_bot_token: maskSecret(settings.telegram_bot_token),|g' /app/dist/routes/settings.js && \
+    sed -i 's|discord_webhook_url: settings.discord_webhook_url \|\| null,|discord_webhook_url: maskSecret(settings.discord_webhook_url),|g' /app/dist/routes/settings.js && \
+    sed -i 's|pushover_user_key: settings.pushover_user_key \|\| null,|pushover_user_key: maskSecret(settings.pushover_user_key),|g' /app/dist/routes/settings.js && \
+    sed -i 's|pushover_app_token: settings.pushover_app_token \|\| null,|pushover_app_token: maskSecret(settings.pushover_app_token),|g' /app/dist/routes/settings.js && \
+    sed -i 's|ntfy_password: settings.ntfy_password \|\| null,|ntfy_password: maskSecret(settings.ntfy_password),|g' /app/dist/routes/settings.js && \
+    sed -i 's|gotify_app_token: settings.gotify_app_token \|\| null,|gotify_app_token: maskSecret(settings.gotify_app_token),|g' /app/dist/routes/settings.js && \
+    sed -i 's|anthropic_api_key: settings.anthropic_api_key \|\| null,|anthropic_api_key: maskSecret(settings.anthropic_api_key),|g' /app/dist/routes/settings.js && \
+    sed -i 's|openai_api_key: settings.openai_api_key \|\| null,|openai_api_key: maskSecret(settings.openai_api_key),|g' /app/dist/routes/settings.js && \
+    sed -i 's|gemini_api_key: settings.gemini_api_key \|\| null,|gemini_api_key: maskSecret(settings.gemini_api_key),|g' /app/dist/routes/settings.js && \
+    sed -i 's|const { telegram_bot_token, telegram_chat_id, telegram_enabled, discord_webhook_url, discord_enabled, pushover_user_key, pushover_app_token, pushover_enabled, ntfy_topic, ntfy_server_url, ntfy_username, ntfy_password, ntfy_enabled, gotify_url, gotify_app_token, gotify_enabled, } = req.body;|let { telegram_bot_token, telegram_chat_id, telegram_enabled, discord_webhook_url, discord_enabled, pushover_user_key, pushover_app_token, pushover_enabled, ntfy_topic, ntfy_server_url, ntfy_username, ntfy_password, ntfy_enabled, gotify_url, gotify_app_token, gotify_enabled, } = req.body;\n        if (isMasked(telegram_bot_token)) telegram_bot_token = undefined;\n        if (isMasked(discord_webhook_url)) discord_webhook_url = undefined;\n        if (isMasked(pushover_user_key)) pushover_user_key = undefined;\n        if (isMasked(pushover_app_token)) pushover_app_token = undefined;\n        if (isMasked(ntfy_password)) ntfy_password = undefined;\n        if (isMasked(gotify_app_token)) gotify_app_token = undefined;|' /app/dist/routes/settings.js && \
+    sed -i 's|const { ai_enabled, ai_verification_enabled, ai_provider, anthropic_api_key, anthropic_model, openai_api_key, openai_model, ollama_base_url, ollama_model, gemini_api_key, gemini_model, } = req.body;|let { ai_enabled, ai_verification_enabled, ai_provider, anthropic_api_key, anthropic_model, openai_api_key, openai_model, ollama_base_url, ollama_model, gemini_api_key, gemini_model, } = req.body;\n        if (isMasked(anthropic_api_key)) anthropic_api_key = undefined;\n        if (isMasked(openai_api_key)) openai_api_key = undefined;\n        if (isMasked(gemini_api_key)) gemini_api_key = undefined;|' /app/dist/routes/settings.js
+
+# 6. First-user-admin TOCTOU + user-enumeration on registration.
+COPY backend/patches/registrationLock.js /app/dist/patches/registrationLock.js
+RUN sed -i 's|const auth_1 = require("../middleware/auth");|const auth_1 = require("../middleware/auth");\nconst { withRegistrationLock } = require("../patches/registrationLock");|' /app/dist/routes/auth.js && \
+    sed -i "s|res.status(409).json({ error: 'Email already registered' });|res.status(409).json({ error: 'Unable to complete registration' });|" /app/dist/routes/auth.js && \
+    sed -i '53,58c\
+        const user = await withRegistrationLock(async () => {\
+            const u = await models_1.userQueries.create(email, passwordHash);\
+            const allUsers = await models_1.userQueries.findAll();\
+            if (allUsers.length === 1) {\
+                await models_1.userQueries.setAdmin(u.id, true);\
+            }\
+            return u;\
+        });' /app/dist/routes/auth.js

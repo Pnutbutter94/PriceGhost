@@ -247,8 +247,22 @@ function extractGenericCssCandidates($: CheerioAPI): PriceCandidate[] {
   return candidates;
 }
 
-// Browser-based scraping for sites that block HTTP requests (e.g., Cloudflare)
+// #B346: no concurrency cap meant an unbounded number of headless Chromium
+// instances could launch at once — resource-exhaustion risk on the
+// i5-4210U/8GB host. Gate the real implementation behind a small semaphore.
+const { acquire } = require('../patches/concurrencyLimiter') as { acquire: () => Promise<() => void> };
+
 async function scrapeWithBrowser(url: string): Promise<string> {
+  const release = await acquire();
+  try {
+    return await scrapeWithBrowserInner(url);
+  } finally {
+    release();
+  }
+}
+
+// Browser-based scraping for sites that block HTTP requests (e.g., Cloudflare)
+async function scrapeWithBrowserInner(url: string): Promise<string> {
   const browser = await puppeteer.launch({
     headless: true,
     args: [

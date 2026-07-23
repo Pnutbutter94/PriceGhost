@@ -1,3 +1,9 @@
+// #B346 schema-drift: this script is stale and unused — missing is_admin and
+// all AI/notification columns added since. The deployed container never runs
+// it (backend runs from upstream's compiled dist/, not this repo's src/); the
+// only invocation path is the unused `npm run db:init` script. index.ts's
+// runMigrations() is the actual source of truth for ongoing schema, and it
+// runs on every boot. Kept only for history — do not run this script.
 import pool from './database';
 
 const initDatabase = async () => {

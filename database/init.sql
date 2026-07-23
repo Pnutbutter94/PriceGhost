@@ -1,4 +1,8 @@
 -- PriceGhost Database Schema
+-- Fresh-volume bootstrap only (mounted as docker-entrypoint-initdb.d, runs once
+-- on an empty Postgres data dir). backend/src/index.ts's runMigrations() is the
+-- source of truth for ongoing schema — it runs idempotently on every boot and
+-- is what actually keeps an existing deployment's schema current.
 
 -- Users table
 CREATE TABLE IF NOT EXISTS users (

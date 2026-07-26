@@ -602,7 +602,7 @@ async function verifyStockStatusWithGemini(
 }
 
 function parseStockStatusResponse(responseText: string): AIStockStatusResult {
-  console.log(`[AI Stock] Raw response: ${responseText.substring(0, 500)}...`);
+  if (process.env.AI_DEBUG_LOG === 'true') console.log(`[AI Stock] Raw response: ${responseText.substring(0, 500)}...`);
 
   // Default result if parsing fails
   const defaultResult: AIStockStatusResult = {
@@ -626,7 +626,7 @@ function parseStockStatusResponse(responseText: string): AIStockStatusResult {
     }
 
     const parsed = JSON.parse(jsonStr);
-    console.log(`[AI Stock] Parsed:`, JSON.stringify(parsed, null, 2));
+    if (process.env.AI_DEBUG_LOG === 'true') console.log(`[AI Stock] Parsed:`, JSON.stringify(parsed, null, 2));
 
     // Normalize stock status
     let stockStatus: StockStatus = 'unknown';
@@ -655,7 +655,7 @@ function parseVerificationResponse(
   originalPrice: number,
   originalCurrency: string
 ): AIVerificationResult {
-  console.log(`[AI Verify] Raw response: ${responseText.substring(0, 500)}...`);
+  if (process.env.AI_DEBUG_LOG === 'true') console.log(`[AI Verify] Raw response: ${responseText.substring(0, 500)}...`);
 
   // Default result if parsing fails
   const defaultResult: AIVerificationResult = {
@@ -683,7 +683,7 @@ function parseVerificationResponse(
 
   try {
     const data = JSON.parse(jsonStr);
-    console.log(`[AI Verify] Parsed:`, JSON.stringify(data, null, 2));
+    if (process.env.AI_DEBUG_LOG === 'true') console.log(`[AI Verify] Parsed:`, JSON.stringify(data, null, 2));
 
     let suggestedPrice: ParsedPrice | null = null;
     if (!data.isCorrect && data.suggestedPrice !== null && data.suggestedPrice !== undefined) {
@@ -724,7 +724,7 @@ function parseVerificationResponse(
 }
 
 function parseAIResponse(responseText: string): AIExtractionResult {
-  console.log(`[AI] Raw response: ${responseText.substring(0, 500)}...`);
+  if (process.env.AI_DEBUG_LOG === 'true') console.log(`[AI] Raw response: ${responseText.substring(0, 500)}...`);
 
   // Strip thinking tags from models like Qwen3/DeepSeek, then try to extract JSON
   let jsonStr = stripThinkingTags(responseText).trim();
@@ -743,7 +743,7 @@ function parseAIResponse(responseText: string): AIExtractionResult {
 
   try {
     const data = JSON.parse(jsonStr);
-    console.log(`[AI] Parsed data:`, JSON.stringify(data, null, 2));
+    if (process.env.AI_DEBUG_LOG === 'true') console.log(`[AI] Parsed data:`, JSON.stringify(data, null, 2));
 
     let price: ParsedPrice | null = null;
     if (data.price !== null && data.price !== undefined) {
@@ -1114,7 +1114,7 @@ function parseArbitrationResponse(
   responseText: string,
   candidates: PriceCandidate[]
 ): AIArbitrationResult {
-  console.log(`[AI Arbitrate] Raw response: ${responseText.substring(0, 500)}...`);
+  if (process.env.AI_DEBUG_LOG === 'true') console.log(`[AI Arbitrate] Raw response: ${responseText.substring(0, 500)}...`);
 
   const defaultResult: AIArbitrationResult = {
     selectedPrice: null,
@@ -1139,7 +1139,7 @@ function parseArbitrationResponse(
 
   try {
     const data = JSON.parse(jsonStr);
-    console.log(`[AI Arbitrate] Parsed:`, JSON.stringify(data, null, 2));
+    if (process.env.AI_DEBUG_LOG === 'true') console.log(`[AI Arbitrate] Parsed:`, JSON.stringify(data, null, 2));
 
     const selectedIndex = data.selectedIndex;
     if (typeof selectedIndex === 'number' && selectedIndex >= 0 && selectedIndex < candidates.length) {

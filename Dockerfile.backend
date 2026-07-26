@@ -94,3 +94,18 @@ RUN sed -i 's|const auth_1 = require("../middleware/auth");|const auth_1 = requi
             }\
             return u;\
         });' /app/dist/routes/auth.js
+
+# 7. Verbose scraped/AI-content logging: raw AI responses and parsed JSON were
+# dumped to stdout unconditionally, up to 500 chars of third-party page/product
+# content per call. Gate behind AI_DEBUG_LOG=true (default off); non-content
+# operational logs (provider selection, counts) are left as-is.
+RUN sed -i \
+      -e 's|console.log(`\[AI Stock\] Raw response: |if (process.env.AI_DEBUG_LOG === '"'"'true'"'"') console.log(`[AI Stock] Raw response: |' \
+      -e 's|console.log(`\[AI Stock\] Parsed:`, JSON.stringify(parsed, null, 2));|if (process.env.AI_DEBUG_LOG === '"'"'true'"'"') console.log(`[AI Stock] Parsed:`, JSON.stringify(parsed, null, 2));|' \
+      -e 's|console.log(`\[AI Verify\] Raw response: |if (process.env.AI_DEBUG_LOG === '"'"'true'"'"') console.log(`[AI Verify] Raw response: |' \
+      -e 's|console.log(`\[AI Verify\] Parsed:`, JSON.stringify(data, null, 2));|if (process.env.AI_DEBUG_LOG === '"'"'true'"'"') console.log(`[AI Verify] Parsed:`, JSON.stringify(data, null, 2));|' \
+      -e 's|console.log(`\[AI\] Raw response: |if (process.env.AI_DEBUG_LOG === '"'"'true'"'"') console.log(`[AI] Raw response: |' \
+      -e 's|console.log(`\[AI\] Parsed data:`, JSON.stringify(data, null, 2));|if (process.env.AI_DEBUG_LOG === '"'"'true'"'"') console.log(`[AI] Parsed data:`, JSON.stringify(data, null, 2));|' \
+      -e 's|console.log(`\[AI Arbitrate\] Raw response: |if (process.env.AI_DEBUG_LOG === '"'"'true'"'"') console.log(`[AI Arbitrate] Raw response: |' \
+      -e 's|console.log(`\[AI Arbitrate\] Parsed:`, JSON.stringify(data, null, 2));|if (process.env.AI_DEBUG_LOG === '"'"'true'"'"') console.log(`[AI Arbitrate] Parsed:`, JSON.stringify(data, null, 2));|' \
+      /app/dist/services/ai-extractor.js

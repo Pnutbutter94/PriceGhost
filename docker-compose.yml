@@ -48,7 +48,10 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: ghcr.io/clucraft/priceghost-frontend:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    image: priceghost-frontend-local:latest
     container_name: priceghost-frontend
     ports:
       - "8092:80"

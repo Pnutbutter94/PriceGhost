@@ -102,7 +102,7 @@ function extractJsonLdCandidates($: CheerioAPI): PriceCandidate[] {
       if (product?.offers) {
         const offer = Array.isArray(product.offers) ? product.offers[0] : product.offers;
         const priceValue = offer.lowPrice || offer.price || offer.priceSpecification?.price;
-        const currency = offer.priceCurrency || offer.priceSpecification?.priceCurrency || 'USD';
+        const currency = offer.priceCurrency || offer.priceSpecification?.priceCurrency || (process.env.DEFAULT_CURRENCY || 'EUR');
 
         if (priceValue) {
           const price = parseFloat(String(priceValue));
@@ -199,7 +199,7 @@ function extractGenericCssCandidates($: CheerioAPI): PriceCandidate[] {
       if (priceAmount) {
         const price = parseFloat(priceAmount);
         if (!isNaN(price) && price > 0) {
-          let currency = 'USD';
+          let currency = process.env.DEFAULT_CURRENCY || 'EUR';
           const textSources = [text, $el.parent().text(), $el.closest('.price-box').text()];
           for (const source of textSources) {
             if (!source) continue;
@@ -211,7 +211,7 @@ function extractGenericCssCandidates($: CheerioAPI): PriceCandidate[] {
             const symbolMatch = source.match(/([$€£¥₹])/);
             if (symbolMatch) {
               const symbolMap: Record<string, string> = { '$': 'USD', '€': 'EUR', '£': 'GBP', '¥': 'JPY', '₹': 'INR' };
-              currency = symbolMap[symbolMatch[1]] || 'USD';
+              currency = symbolMap[symbolMatch[1]] || (process.env.DEFAULT_CURRENCY || 'EUR');
               break;
             }
           }
@@ -562,7 +562,7 @@ const siteScrapers: SiteScraper[] = [
             if (priceInfo) {
               price = {
                 price: typeof priceInfo.price === 'number' ? priceInfo.price : parseFloat(priceInfo.price),
-                currency: priceInfo.currencyCode || 'USD',
+                currency: priceInfo.currencyCode || (process.env.DEFAULT_CURRENCY || 'EUR'),
               };
             }
 
@@ -829,7 +829,7 @@ const siteScrapers: SiteScraper[] = [
                 if (offer?.price) {
                   price = {
                     price: parseFloat(String(offer.price)),
-                    currency: offer.priceCurrency || 'USD',
+                    currency: offer.priceCurrency || (process.env.DEFAULT_CURRENCY || 'EUR'),
                   };
                   break;
                 }
@@ -1031,7 +1031,7 @@ const siteScrapers: SiteScraper[] = [
             const priceValue = parseFloat(priceAmount);
             if (!isNaN(priceValue) && priceValue > 0) {
               // Detect currency from the page
-              let currency = 'USD';
+              let currency = process.env.DEFAULT_CURRENCY || 'EUR';
               const priceText = el.closest('.price-box').text() || el.parent().text() || '';
               const currencyMatch = priceText.match(/\b(CHF|EUR|GBP|USD|CAD|AUD)\b/i);
               if (currencyMatch) {
@@ -1811,7 +1811,7 @@ function extractJsonLd(
           // 2. price (direct)
           // 3. priceSpecification.price (nested format used by some sites)
           const priceValue = offer.lowPrice || offer.price || offer.priceSpecification?.price;
-          const currency = offer.priceCurrency || offer.priceSpecification?.priceCurrency || 'USD';
+          const currency = offer.priceCurrency || offer.priceSpecification?.priceCurrency || (process.env.DEFAULT_CURRENCY || 'EUR');
 
           if (priceValue) {
             result.price = {
@@ -1901,7 +1901,7 @@ function extractGenericPrice($: CheerioAPI): ParsedPrice | null {
         const price = parseFloat(priceAmount);
         if (!isNaN(price) && price > 0) {
           // Try to detect currency from nearby elements, parent, or page
-          let currency = 'USD';
+          let currency = process.env.DEFAULT_CURRENCY || 'EUR';
 
           // Look for currency in the element's text, parent, and price-box container
           const textSources = [
@@ -1924,7 +1924,7 @@ function extractGenericPrice($: CheerioAPI): ParsedPrice | null {
             const symbolMatch = source.match(/([$€£¥₹])/);
             if (symbolMatch) {
               const symbolMap: Record<string, string> = { '$': 'USD', '€': 'EUR', '£': 'GBP', '¥': 'JPY', '₹': 'INR' };
-              currency = symbolMap[symbolMatch[1]] || 'USD';
+              currency = symbolMap[symbolMatch[1]] || (process.env.DEFAULT_CURRENCY || 'EUR');
               break;
             }
           }

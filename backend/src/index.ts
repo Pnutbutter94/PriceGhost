@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+const { rateLimit } = require('./patches/rateLimiter') as { rateLimit: express.RequestHandler };
 
 import authRoutes from './routes/auth';
 import productRoutes from './routes/products';
@@ -256,7 +257,12 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
-app.use(cors());
+const corsOrigins = (
+  process.env.CORS_ORIGIN ||
+  'http://localhost:8092,http://100.100.203.28:8092,http://casaserver.local:8092'
+).split(',').filter(Boolean);
+app.use(cors({ origin: corsOrigins, credentials: true }));
+app.use(rateLimit);
 app.use(express.json());
 
 // Health check endpoint

@@ -2,6 +2,9 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import { userQueries, systemSettingsQueries } from '../models';
 import { generateToken } from '../middleware/auth';
+const { withRegistrationLock } = require('../patches/registrationLock') as {
+  withRegistrationLock: <T>(fn: () => Promise<T>) => Promise<T>;
+};
 
 const router = Router();
 
@@ -46,20 +49,27 @@ router.post('/register', async (req: Request, res: Response) => {
 
     const existingUser = await userQueries.findByEmail(email);
     if (existingUser) {
-      res.status(409).json({ error: 'Email already registered' });
+      // #B346: generic message — "Email already registered" is a user-
+      // enumeration leak.
+      res.status(409).json({ error: 'Unable to complete registration' });
       return;
     }
 
     const saltRounds = 12;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    const user = await userQueries.create(email, passwordHash);
-
-    // Make first user an admin
-    const allUsers = await userQueries.findAll();
-    if (allUsers.length === 1) {
-      await userQueries.setAdmin(user.id, true);
-    }
+    // #B346: first-user-admin (create -> count -> setAdmin) was a TOCTOU
+    // under READ COMMITTED — two concurrent registrations could each see
+    // count===1 before the other's insert committed, both becoming admin.
+    // Serialize the critical section with a Postgres advisory lock.
+    const user = await withRegistrationLock(async () => {
+      const u = await userQueries.create(email, passwordHash);
+      const allUsers = await userQueries.findAll();
+      if (allUsers.length === 1) {
+        await userQueries.setAdmin(u.id, true);
+      }
+      return u;
+    });
 
     const token = generateToken(user.id);
 

@@ -34,6 +34,7 @@ services:
       PORT: 3001
       NODE_ENV: production
       PUPPETEER_EXECUTABLE_PATH: /opt/chrome/chrome
+      DEFAULT_CURRENCY: EUR
     user: root
     cap_add:
       - SYS_PTRACE

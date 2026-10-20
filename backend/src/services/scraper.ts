@@ -279,8 +279,22 @@ async function scrapeWithBrowserInner(url: string): Promise<string> {
     ignoreDefaultArgs: ['--enable-automation'],
   });
 
+  // Core dumps are off (ulimit core:0), so log renderer/browser crashes explicitly.
+  let closing = false;
+  const startedAt = Date.now();
+  const elapsed = () => `${Date.now() - startedAt}ms`;
+  browser.process()?.on('exit', (code, signal) => {
+    if (!closing) console.error(`[Browser] chrome main process exited unexpectedly code=${code} signal=${signal} after ${elapsed()} url=${url}`);
+  });
+  browser.on('disconnected', () => {
+    if (!closing) console.error(`[Browser] disconnected unexpectedly after ${elapsed()} url=${url}`);
+  });
+
   try {
     const page = await browser.newPage();
+    page.on('error', (err) => {
+      console.error(`[Browser] page crashed after ${elapsed()} url=${url}: ${err.message}`);
+    });
 
     // Set viewport
     await page.setViewport({ width: 1920, height: 1080 });
@@ -326,6 +340,7 @@ async function scrapeWithBrowserInner(url: string): Promise<string> {
     const html = await page.content();
     return html;
   } finally {
+    closing = true;
     await browser.close();
   }
 }

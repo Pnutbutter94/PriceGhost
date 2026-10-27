@@ -1,7 +1,7 @@
 # #B360 — local source build, replacing the previous upstream-image + sed
 # (nginx.conf COPY-only) approach. Static Vite build, no native-dep concerns,
 # so alpine is fine here (unlike the backend, which needs glibc for Chrome).
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 COPY frontend/package*.json ./
 RUN npm ci
